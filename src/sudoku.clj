@@ -95,7 +95,7 @@
         changed-row (assoc row x v)
         changed-col (assoc col y v)
         changed-box (assoc box box-index v)]
-      { :rows (assoc (:rows sud) y changed-row)
+    { :rows (assoc (:rows sud) y changed-row)
       :cols (assoc (:cols sud) x changed-col)
       :boxs (assoc (:boxs sud) box-no changed-box)}))
 
@@ -103,8 +103,8 @@
   (defn completed? [{free :free-values}] (nil? free))
   (defn unsolvable? [{free :free-values}] (empty? free))
   (defn free-values-count [{free :free-values}] (count free))
-  (let [spots (sort-by free-values-count 
-                (remove completed? 
+  (let [spots (sort-by free-values-count
+                (remove completed?
                   (for [y (range 1 10)
                         x (range 1 10)]
                     (let [coord [x y]]
@@ -113,8 +113,8 @@
 
 (defn solve [sud]
   (defn solve-int [sud depth]
-    (if (solved? sud) 
-      { :solution sud 
+    (if (solved? sud)
+      { :solution sud
         :depth depth }
       (first (let [{ coord :coord free-values :free-values } (first (free-spots sud))]
                (if (empty? free-values)
@@ -125,34 +125,36 @@
                    (remove nil? (map solve-deeper candidates))))))))
   (solve-int sud 0))
 
-; Warm-up: Evil sudoku a few times
-(let [sud (read-sud "306 200 000
-                     000 603 000
-                     090 080 403
+(defn -main []
+
+  ; Warm-up: Evil sudoku a few times
+  (let [sud (read-sud "306 200 000
+                       000 603 000
+                       090 080 403
                      
-                     078 005 000
-                     020 000 050
-                     000 400 870
+                       078 005 000
+                       020 000 050
+                       000 400 870
                      
-                     504 070 090
-                     000 301 000
-                     000 002 105")]
-  (dotimes [i 25] (solve sud)))
+                       504 070 090
+                       000 301 000
+                       000 002 105")]
+    (dotimes [i 25] (solve sud)))
 
-; The hardest sudokus start with 17 numbers. This is the minimum required for having a unique solution.  
-; This sudoku starts with 16 numbers and has two solutions.  We find one, so far.
-(let [sud (read-sud "100 000 005
-                     000 030 000
-                     002 040 000
+  ; The hardest sudokus start with 17 numbers. This is the minimum required for having a unique solution.  
+  ; This sudoku starts with 16 numbers and has two solutions.  We find one, so far.
+  (let [sud (read-sud "100 000 005
+                       000 030 000
+                       002 040 000
 
-                     000 000 000
-                     034 000 700
-                     000 206 001
+                       000 000 000
+                       034 000 700
+                       000 206 001
 
-                     200 005 000
-                     070 000 030
-                     000 001 000")]
-  (println (print-sud sud))
-  (println)
-  (let [solved-sud (time (solve sud))]
-    (println (print-sud (:solution solved-sud)) "depth" (:depth solved-sud))))
+                       200 005 000
+                       070 000 030
+                       000 001 000")]
+    (println (print-sud sud))
+    (println)
+    (let [solved-sud (time (solve sud))]
+      (println (print-sud (:solution solved-sud)) "depth" (:depth solved-sud)))))
