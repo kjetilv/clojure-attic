@@ -14,46 +14,6 @@
         (str/join " " (split (map to-x row) 3 "|"))))
     (str/join "\n" (map print-line printable-rows))))
 
-(defn read-sud [sudoku-string]
-  (let [numbers (set (seq (clojure.string/join "" (range 10))))]
-    (letfn [(is-number? [^Character ch]
-              (numbers ch))
-            (non-number? [^Character ch]
-              (not (is-number? ch)))
-            (no-numbers? [line]
-              (not (some is-number? (seq line))))
-            (vectors [lists]
-              (map #(apply vector %1) lists))
-            (divide-into [size coll]
-              (if (empty? coll) ()
-                (cons (take size coll) (divide-into size (drop size coll)))))
-            (non-number-remover [line]
-              (remove non-number? line))
-
-            (to-nums [line]
-              (letfn [(to-num [x] (. Integer parseInt (str x)))]
-                (map to-num line)))
-            (to-columns [rows]
-              (if (some empty? rows) ()
-                (cons (map first rows) (to-columns (map rest rows)))))
-            (to-boxes [rows]
-              (letfn [(into-3 [row] (divide-into 3 row))
-                      (collapse [list-of-lists] (reduce concat list-of-lists))]
-                (collapse (map #(map collapse %1) (map to-columns (divide-into 3 (map into-3 rows)))))))]
-      (let [lines (remove no-numbers? (map seq (str/split-lines sudoku-string)))
-            rows (vectors (map to-nums (map non-number-remover lines)))
-            cols (vectors (to-columns rows))
-            boxs (vectors (to-boxes rows))]
-        { :rows (apply vector rows)
-          :cols (apply vector cols)
-          :boxs (apply vector boxs) }))))
-
-(defn solved? [sud]
-  (defn contains-zero? [row] (some zero? row))
-  (and
-    (not (nil? sud))
-    (not (some contains-zero? (:rows sud)))))
-
 (defn coords [sud [i j]]
   (def base-coords
     (memoize (fn [i j]
@@ -89,6 +49,63 @@
         (let [nums (set (concat row col box))]
           (remove nums (range 10)))))))
 
+(defn free-spots [sud]
+  (defn completed? [{free :free-values}] (nil? free))
+  (defn unsolvable? [{free :free-values}] (empty? free))
+  (defn free-values-count [{free :free-values}] (count free))
+  (let [spots (sort-by free-values-count
+                (if (:free sud)
+                  (for [coord (:free sud)]
+                    { :coord coord :free-values (available sud coord)})
+                  (remove completed?
+                    (for [y (range 1 10)
+                          x (range 1 10)]
+                      (let [coord [x y]]
+                        { :coord coord :free-values (available sud coord)})))))]
+    (if (some unsolvable? spots) [] spots)))
+
+(defn read-sud [sudoku-string]
+  (let [numbers (set (seq (clojure.string/join "" (range 10))))]
+    (letfn [(is-number? [^Character ch]
+              (numbers ch))
+            (non-number? [^Character ch]
+              (not (is-number? ch)))
+            (no-numbers? [line]
+              (not (some is-number? (seq line))))
+            (vectors [lists]
+              (map #(apply vector %1) lists))
+            (divide-into [size coll]
+              (if (empty? coll) ()
+                (cons (take size coll) (divide-into size (drop size coll)))))
+            (non-number-remover [line]
+              (remove non-number? line))
+
+            (to-nums [line]
+              (letfn [(to-num [x] (. Integer parseInt (str x)))]
+                (map to-num line)))
+            (to-columns [rows]
+              (if (some empty? rows) ()
+                (cons (map first rows) (to-columns (map rest rows)))))
+            (to-boxes [rows]
+              (letfn [(into-3 [row] (divide-into 3 row))
+                      (collapse [list-of-lists] (reduce concat list-of-lists))]
+                (collapse (map #(map collapse %1) (map to-columns (divide-into 3 (map into-3 rows)))))))]
+      (let [lines (remove no-numbers? (map seq (str/split-lines sudoku-string)))
+            rows (vectors (map to-nums (map non-number-remover lines)))
+            cols (vectors (to-columns rows))
+            boxs (vectors (to-boxes rows))
+            sud { :rows (apply vector rows)
+                  :cols (apply vector cols)
+                  :boxs (apply vector boxs) }
+            free (map :coord (free-spots sud))]
+        (assoc sud :free free)))))
+
+(defn solved? [sud]
+  (defn contains-zero? [row] (some zero? row))
+  (and
+    (not (nil? sud))
+    (not (some contains-zero? (:rows sud)))))
+
 (defn branch-sud [sud [i j] v]
   (let [{ x :x y :y box-no :box-no box-index :box-index row :row col :col box :box } (coords sud [i j])
         changed-row (assoc row x v)
@@ -96,19 +113,8 @@
         changed-box (assoc box box-index v)]
     { :rows (assoc (:rows sud) y changed-row)
       :cols (assoc (:cols sud) x changed-col)
-      :boxs (assoc (:boxs sud) box-no changed-box)}))
-
-(defn free-spots [sud]
-  (defn completed? [{free :free-values}] (nil? free))
-  (defn unsolvable? [{free :free-values}] (empty? free))
-  (defn free-values-count [{free :free-values}] (count free))
-  (let [spots (sort-by free-values-count
-                (remove completed?
-                  (for [y (range 1 10)
-                        x (range 1 10)]
-                    (let [coord [x y]]
-                      { :coord coord :free-values (available sud coord)}))))]
-    (if (some unsolvable? spots) [] spots)))
+      :boxs (assoc (:boxs sud) box-no changed-box)
+      :free (remove #(= %1 [i j]) (:free sud)) }))
 
 (defn solve [sud]
   (defn solve-int [sud depth]
