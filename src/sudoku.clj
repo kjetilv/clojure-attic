@@ -3,30 +3,32 @@
   (:require [clojure.math.numeric-tower :as math]))
 
 (defn print-sud [sud & sep]
-  (defn to-x [x] (if (pos? x) x (if (nil? sep) " " (first sep))))
-  (defn split [coll x sep]
-    (if (empty? (drop x coll)) coll
-      (concat (take x coll) (list sep) (split (drop x coll) x sep))))
-  (let [printable-rows (split (:rows sud) 3 "------|-------|------")]
-    (defn print-line [row]
-      (or
-        (and (string? row) row)
-        (str/join " " (split (map to-x row) 3 "|"))))
-    (str/join "\n" (map print-line printable-rows))))
+  (letfn [(to-x [x]
+            (if (pos? x) x (if (nil? sep) " " (first sep))))
+          (split [coll x sep]
+            (if (empty? (drop x coll)) coll
+              (concat (take x coll) (list sep) (split (drop x coll) x sep))))]
+    (let [printable-rows (split (:rows sud) 3 "------|-------|------")]
+      (letfn [(print-line [row]
+                (or
+                  (and (string? row) row)
+                  (str/join " " (split (map to-x row) 3 "|"))))]
+        (str/join "\n" (map print-line printable-rows))))))
+
+(def base-coords
+  (memoize (fn [i j]
+             (let [x (dec i)
+                   y (dec j)
+                   box-x (int (/ x 3))
+                   box-y (int (/ y 3))
+                   box-index (+ (* (mod y 3) 3) (mod x 3))
+                   box-no (+ (* 3 box-y) box-x)]
+               { :x x :y y
+                 :box-x box-x :box-y box-y
+                 :box-no box-no
+                 :box-index box-index }))))
 
 (defn coords [sud [i j]]
-  (def base-coords
-    (memoize (fn [i j]
-               (let [x (dec i)
-                     y (dec j)
-                     box-x (int (/ x 3))
-                     box-y (int (/ y 3))
-                     box-index (+ (* (mod y 3) 3) (mod x 3))
-                     box-no (+ (* 3 box-y) box-x)]
-                 { :x x :y y
-                   :box-x box-x :box-y box-y
-                   :box-no box-no
-                   :box-index box-index }))))
   (let [{ x :x y :y
           box-x :box-x box-y :box-y
           box-no :box-no
@@ -50,27 +52,27 @@
           (remove nums (range 10)))))))
 
 (defn free-spots [sud]
-  (letfn [(completed? [{free :free-values}] 
+  (letfn [(completed? [{free :free-values}]
             (nil? free))
-          (unsolvable? [{free :free-values}] 
+          (unsolvable? [{free :free-values}]
             (empty? free))
-          (free-values-count 
+          (free-values-count
             [{free :free-values}] (count free))
-          (free-spot [coord] 
+          (free-spot [coord]
             { :coord coord :free-values (available sud coord)})
           (remaining-free-spots [free-coords]
-            (for [coord free-coords] 
+            (for [coord free-coords]
               (free-spot coord)))
           (initial-free-spots []
             (remove completed? (for [y (range 1 10)
-                                     x (range 1 10)] 
+                                     x (range 1 10)]
                                  (free-spot [x y]))))]
     (let [free-coords (:free sud)
-          free-spots (if free-coords 
-                       (remaining-free-spots free-coords) 
-                       (initial-free-spots))]
-      (if (some unsolvable? free-spots) 
-        [] 
+          free-spots (if free-coords
+        (remaining-free-spots free-coords)
+        (initial-free-spots))]
+      (if (some unsolvable? free-spots)
+        []
         (sort-by free-values-count free-spots)))))
 
 (defn read-sud [sudoku-string]
@@ -110,7 +112,7 @@
         (assoc sud :free free)))))
 
 (defn solved? [sud]
-  (letfn [(contains-zero? [row] 
+  (letfn [(contains-zero? [row]
             (some zero? row))]
     (and
       (not (nil? sud))
@@ -127,18 +129,18 @@
       :free (remove #(= %1 [i j]) (:free sud)) }))
 
 (defn solve [sud]
-  (defn solve-int [sud depth]
-    (if (solved? sud)
-      { :solution sud
-        :depth depth }
-      (first (let [{ coord :coord free-values :free-values } (first (free-spots sud))]
-               (if (empty? free-values)
-                 nil
-                 (let [branch-candidate (fn [free-value] (branch-sud sud coord free-value))
-                       solve-deeper (fn [candidate] (solve-int candidate (inc depth)))
-                       candidates (map branch-candidate free-values)]
-                   (remove nil? (map solve-deeper candidates))))))))
-  (solve-int sud 0))
+  (letfn [(solve-int [sud depth]
+            (if (solved? sud)
+              { :solution sud
+                :depth depth }
+              (first (let [{ coord :coord free-values :free-values } (first (free-spots sud))]
+                       (if (empty? free-values)
+                         nil
+                         (let [branch-candidate (fn [free-value] (branch-sud sud coord free-value))
+                               solve-deeper (fn [candidate] (solve-int candidate (inc depth)))
+                               candidates (map branch-candidate free-values)]
+                           (remove nil? (map solve-deeper candidates))))))))]
+    (solve-int sud 0)))
 
 (defn -main []
 
