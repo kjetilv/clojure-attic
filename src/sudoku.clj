@@ -50,19 +50,28 @@
           (remove nums (range 10)))))))
 
 (defn free-spots [sud]
-  (defn completed? [{free :free-values}] (nil? free))
-  (defn unsolvable? [{free :free-values}] (empty? free))
-  (defn free-values-count [{free :free-values}] (count free))
-  (let [spots (sort-by free-values-count
-                (if (:free sud)
-                  (for [coord (:free sud)]
-                    { :coord coord :free-values (available sud coord)})
-                  (remove completed?
-                    (for [y (range 1 10)
-                          x (range 1 10)]
-                      (let [coord [x y]]
-                        { :coord coord :free-values (available sud coord)})))))]
-    (if (some unsolvable? spots) [] spots)))
+  (letfn [(completed? [{free :free-values}] 
+            (nil? free))
+          (unsolvable? [{free :free-values}] 
+            (empty? free))
+          (free-values-count 
+            [{free :free-values}] (count free))
+          (free-spot [coord] 
+            { :coord coord :free-values (available sud coord)})
+          (remaining-free-spots [free-coords]
+            (for [coord free-coords] 
+              (free-spot coord)))
+          (initial-free-spots []
+            (remove completed? (for [y (range 1 10)
+                                     x (range 1 10)] 
+                                 (free-spot [x y]))))]
+    (let [free-coords (:free sud)
+          free-spots (if free-coords 
+                       (remaining-free-spots free-coords) 
+                       (initial-free-spots))]
+      (if (some unsolvable? free-spots) 
+        [] 
+        (sort-by free-values-count free-spots)))))
 
 (defn read-sud [sudoku-string]
   (let [numbers (set (seq (clojure.string/join "" (range 10))))]
@@ -101,10 +110,11 @@
         (assoc sud :free free)))))
 
 (defn solved? [sud]
-  (defn contains-zero? [row] (some zero? row))
-  (and
-    (not (nil? sud))
-    (not (some contains-zero? (:rows sud)))))
+  (letfn [(contains-zero? [row] 
+            (some zero? row))]
+    (and
+      (not (nil? sud))
+      (not (some contains-zero? (:rows sud))))))
 
 (defn branch-sud [sud [i j] v]
   (let [{ x :x y :y box-no :box-no box-index :box-index row :row col :col box :box } (coords sud [i j])
