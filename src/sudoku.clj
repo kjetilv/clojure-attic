@@ -76,40 +76,44 @@
         (sort-by free-values-count free-spots)))))
 
 (defn read-sud [sudoku-string]
-  (let [numbers (set (seq (clojure.string/join "" (range 10))))]
-    (letfn [(is-number? [^Character ch]
-              (numbers ch))
-            (non-number? [^Character ch]
-              (not (is-number? ch)))
-            (no-numbers? [line]
-              (not (some is-number? (seq line))))
-            (vectors [lists]
-              (map #(apply vector %1) lists))
-            (divide-into [size coll]
-              (if (empty? coll) ()
-                (cons (take size coll) (divide-into size (drop size coll)))))
-            (non-number-remover [line]
-              (remove non-number? line))
+  (letfn [(is-number? [^Character ch]
+            (let [numbers (set (seq (clojure.string/join "" (range 10))))]
+              (numbers ch)))
+          (vectors [lists]
+            (map #(apply vector %1) lists))
+          (divide-into [size coll]
+            (if (empty? coll) ()
+              (cons (take size coll) (divide-into size (drop size coll)))))
+          (non-number-remover [line]
+            (letfn [(non-number? [^Character ch]
+                      (not (is-number? ch)))]
+              (remove non-number? line)))
+          (no-numbers? [line]
+            (not (some is-number? (seq line))))
 
-            (to-nums [line]
-              (letfn [(to-num [x] (. Integer parseInt (str x)))]
-                (map to-num line)))
-            (to-columns [rows]
-              (if (some empty? rows) ()
-                (cons (map first rows) (to-columns (map rest rows)))))
-            (to-boxes [rows]
-              (letfn [(into-3 [row] (divide-into 3 row))
-                      (collapse [list-of-lists] (reduce concat list-of-lists))]
-                (collapse (map #(map collapse %1) (map to-columns (divide-into 3 (map into-3 rows)))))))]
-      (let [lines (remove no-numbers? (map seq (str/split-lines sudoku-string)))
-            rows (vectors (map to-nums (map non-number-remover lines)))
-            cols (vectors (to-columns rows))
-            boxs (vectors (to-boxes rows))
-            sud { :rows (apply vector rows)
-                  :cols (apply vector cols)
-                  :boxs (apply vector boxs) }
-            free (map :coord (free-spots sud))]
-        (assoc sud :free free)))))
+          (to-nums [line]
+            (letfn [(to-num [x] 
+                      (. Integer parseInt (str x)))]
+              (map to-num line)))
+          (to-columns [rows]
+            (if (some empty? rows)
+              ()
+              (cons (map first rows) (to-columns (map rest rows)))))
+          (to-boxes [rows]
+              (letfn [(into-3 [row] 
+                        (divide-into 3 row))
+                      (collapse [list-of-lists] 
+                        (reduce concat list-of-lists))]
+                (collapse (map #(map collapse %1) (map to-columns (into-3 (map into-3 rows)))))))]
+    (let [lines (remove no-numbers? (map seq (str/split-lines sudoku-string)))
+          rows (vectors (map to-nums (map non-number-remover lines)))
+          cols (vectors (to-columns rows))
+          boxs (vectors (to-boxes rows))
+          sud { :rows (apply vector rows)
+                :cols (apply vector cols)
+                :boxs (apply vector boxs) }
+          free (map :coord (free-spots sud))]
+      (assoc sud :free free))))
 
 (defn solved? [sud]
   (letfn [(contains-zero? [row]
